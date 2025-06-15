@@ -5,47 +5,46 @@ from rliable import metrics
 from rliable.library import get_interval_estimates
 from rliable.plot_utils import plot_sample_efficiency_curve
 
-n_seeds = 2
-# Read data from different runs
-# This is the toy data, you can also build a proper loop over your own runs.
-df_s0 = pd.read_csv("demo_data_seed_0.csv")
-df_s1 = pd.read_csv("demo_data_seed_1.csv")
-# Add a column to distinguish between seeds
-# You would do something similar for different algorithms
-df_s0["seed"] = 0
-df_s1["seed"] = 1
-# Combine the dataframes and convert to numpy array
+n_seeds = 4
+seeds = np.arange(n_seeds)
+eval_interval = 100
+max_steps = 10000
+aligned_steps = np.arange(0, max_steps, eval_interval)
 
-df = pd.concat([df_s0, df_s1], ignore_index=True)
-# Make sure only one set of steps is attempted to be plotted
-# Obviously the steps should match in such cases!
-steps = df["steps"].to_numpy().reshape((n_seeds, -1))[0]
-# You can add other algorithms here
-train_scores = {"dqn": df["rewards"].to_numpy().reshape((n_seeds, -1))}
+def load_and_interp(mode: str):
+    interpolated = []
+    for seed in seeds:
+        path = f"rl_exercises/week_7/rnd_results/training_dataseed{seed}_mode{mode}.csv"
+        df = pd.read_csv(path).sort_values("steps")
+        rewards_interp = np.interp(aligned_steps, df["steps"], df["rewards"])
+        interpolated.append(rewards_interp)
+    return np.stack(interpolated)  # shape: [n_seeds, len(aligned_steps)]
 
-# This aggregates only IQM, but other options include mean and median
-# Optimality gap exists, but you obviously need optimal scores for that
-# If you want to use it, check their code
-iqm = lambda scores: np.array(  # noqa: E731
-    [metrics.aggregate_iqm(scores[:, eval_idx]) for eval_idx in range(scores.shape[-1])]
-)
-iqm_scores, iqm_cis = get_interval_estimates(
-    train_scores,
-    iqm,
-    reps=2000,
-)
+# Load both versions
+vanilla_scores = load_and_interp("False")  # vanilla DQN
+rnd_scores = load_and_interp("True")       # RND-enhanced DQN
 
-# This is a utility function, but you can also just use a normal line plot with the IQM and CI scores
+# Prepare for rliable
+train_scores = {
+    "vanilla_dqn": vanilla_scores,
+    "rnd_dqn": rnd_scores
+}
+
+# IQM aggregation
+iqm = lambda scores: np.array([metrics.aggregate_iqm(scores[:, i]) for i in range(scores.shape[1])])
+iqm_scores, iqm_cis = get_interval_estimates(train_scores, iqm, reps=2000)
+
+# Plot
 plot_sample_efficiency_curve(
-    steps + 1,
+    aligned_steps,
     iqm_scores,
     iqm_cis,
-    algorithms=["dqn"],
-    xlabel=r"Number of Evaluations",
-    ylabel="IQM Normalized Score",
+    algorithms=["vanilla_dqn", "rnd_dqn"],
+    xlabel="Environment Steps",
+    ylabel="Episode Reward (IQM)",
 )
 plt.gcf().canvas.manager.set_window_title(
-    "IQM Normalized Score - Sample Efficiency Curve"
+    "IQM Episode Reward - RND vs Vanilla DQN"
 )
 plt.legend()
 plt.tight_layout()

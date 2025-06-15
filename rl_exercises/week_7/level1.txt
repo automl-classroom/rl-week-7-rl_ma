@@ -1,0 +1,17 @@
+Do you think this method is a good fit for DQN? Why or why not? 
+
+Especially in sparse reward environments, RND should be a good addition to DQN learning.
+It can be specifically helpful for leaving small local reward maxima to explore unknown
+territory.
+However, if the rewards are handed out more frequently, epsilon-greedy should be able 
+to explore the environment on its own without needing the additional RND functionality.
+
+
+Is there a way to see the reason from your training runs?
+
+In the dense-reward environment "LunarLander" we have shown that the RND extension offers
+no valuable addition to vanilla epsilon-greedy DQN.
+However, when we wanted to demonstrate the benefit of RND in a sparse-reward Mini-Grid 
+environment, we could not produce reasonable behaviour in this environment by any means.
+We would still argue that RND should be a reasonable choice here and blame ourselves for
+not getting Minigrid to work.
